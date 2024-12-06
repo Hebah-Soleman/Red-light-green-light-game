@@ -1,3 +1,5 @@
+![KW_G](https://github.com/user-attachments/assets/139ea1fa-722c-4f6a-ade0-eec90dadab4c)
+
 # 🟢 RED LIGHT, 🔴 GREEN LIGHT  
 **A Fun and Thrilling Challenge Inspired by the Squid Game!**  
 Ready to test your reflexes and stealth skills? This game brings the iconic "Red Light, Green Light" from the hit Netflix series **Squid Game** to life, powered by OpenCV.  
