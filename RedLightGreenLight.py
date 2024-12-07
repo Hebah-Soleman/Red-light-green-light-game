@@ -1,131 +1,99 @@
-
-import cv2
-import os
-import numpy as np
 import time
-from playsound import playsound 
+import cv2
+import threading
+import random
+from playsound import playsound
+import os
 
-folderPath = 'frames'
-mylist = os.listdir(folderPath)
-graphic = [cv2.imread(f'{folderPath}/{imPath}') for imPath in mylist]
-green = graphic[0]; red = graphic[1]; kill = graphic[2]; winner = graphic[3]; intro = graphic[4];
+# Base directory for assets
+#BASE_DIR = '/Users/sakhaaalsaedi/Desktop/HS_CSEdWEEK/red-light-green-light/'
 
-cv2.imshow('Squid Game',cv2.resize(intro, (0, 0), fx = 0.5, fy = 0.5) )
-cv2.waitKey(125) 
-playsound('sounds\squidWin.mp3') 
-while True:
-    cv2.imshow('Squid Game',cv2.resize(intro, (0, 0), fx = 0.5, fy = 0.5) )
-    if cv2.waitKey(10) & 0xFF == ord('q'):
-        break 
+# Paths for frames and sounds
+# FRAMES_DIR = os.path.join(BASE_DIR, 'frames')
+# SOUNDS_DIR = os.path.join(BASE_DIR, 'sounds')
+FRAMES_DIR =  'frames'
+SOUNDS_DIR =  'sounds'
 
-TIMER_MAX = 10
-TIMER = TIMER_MAX
-maxMove = 6500000
+# Load images and sounds
+images = [cv2.imread(os.path.join(FRAMES_DIR, img)) for img in sorted(os.listdir(FRAMES_DIR))]
+green, red, kill, winner, intro = images[:5]
+win_sound = os.path.join(SOUNDS_DIR, 'squidWin.mp3')
+kill_sound = os.path.join(SOUNDS_DIR, 'kill.mp3')
+green_sound = os.path.join(SOUNDS_DIR, 'RLGLsong.mp3')
+
+# Variables
+GAME_DURATION, RED_STATE_DURATION = 10, 1
+state, score, game_running = "green", 0, True
 font = cv2.FONT_HERSHEY_SIMPLEX
+
+# Green light music thread
+def green_music():
+    global state
+    while game_running:
+        if state == "green":
+            playsound(green_sound, block=False)  # Play green light music
+            time.sleep(random.randint(5, 10))  # Randomize green state duration
+            state = "red"
+
+# Intro screen
+cv2.imshow('Squid Game', cv2.resize(intro, (0, 0), fx=0.5, fy=0.5))
+cv2.waitKey(3000)
+
+# Start game
 cap = cv2.VideoCapture(0)
-frameHeight = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-frameWidth = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+if not cap.isOpened():
+    raise IOError("Camera not accessible")
+threading.Thread(target=green_music).start()
 
-win = False
-
-prev = time.time()
-prevDoll = prev
-showFrame = cv2.resize(green, (0, 0), fx = 0.5, fy = 0.5)
-isgreen = True
- 
-
-
-while cap.isOpened() and TIMER >=0:
-    #press 'w' to win  
-    '''  
-    if cv2.waitKey(10) & 0xFF == ord('w'):
-        win = Trueq
-        break
-    '''    
-    #press 'w' to win    
-    if isgreen and (cv2.waitKey(10) & 0xFF == ord('w')):
-        win = True
-        break
-
+end_time = time.time() + GAME_DURATION
+while time.time() < end_time:
     ret, frame = cap.read()
-
-    cv2.putText(showFrame, str(TIMER),
-                    (50, 50), font,
-                    1, (0, int(255*(TIMER)/TIMER_MAX), int(255*(TIMER_MAX-TIMER)/TIMER_MAX)),
-                    4, cv2.LINE_AA)
-
-    #cv2.waitKey(125)
-
-    # current time
-    cur = time.time()
-
-    # Update and keep track of Countdown
-    # if time elapsed is one second
-    # than decrease the counter
-    if cur-prev >= 1:
-        prev = cur
-        TIMER = TIMER-1
-        if cv2.waitKey(10) & 0xFF == ord('w'):
-            win = True
-            break
-
-        if isgreen:
-            showFrame = cv2.resize(red, (0, 0), fx = 0.5, fy = 0.5)
-            isgreen = False
-            ref = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            #ref = cv2.GaussianBlur(ref, (21, 21), 0)
-            
-        else:
-            showFrame = cv2.resize(green, (0, 0), fx = 0.5, fy = 0.5)
-            isgreen = True
-    if not isgreen:    
-        
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        #gray = cv2.GaussianBlur(gray, (21, 21), 0)
-        frameDelta = cv2.absdiff(ref, gray)
-        thresh = cv2.threshold(frameDelta, 20, 255, cv2.THRESH_BINARY)[1]
-        change = np.sum(thresh)
-        #print(change)
-        if change>maxMove:
-            break
-    else:
-        if cv2.waitKey(10) & 0xFF == ord('w'):
-            win = True
-            break        
-
-    camShow = cv2.resize(frame, (0, 0), fx = 0.3, fy = 0.3)
-
-    camH, camW = camShow.shape[0],camShow.shape[1]
-    showFrame[0:camH,-camW:] =  camShow
-
-    cv2.imshow('Squid Game',showFrame)
-    if cv2.waitKey(10) & 0xFF == ord('q'):
+    if not ret:
         break
 
-    #press 'w' to win    
-    if isgreen and (cv2.waitKey(10) & 0xFF == ord('w')):
-        win = True
+    remaining_time = int(end_time - time.time())
+    frame = cv2.resize(green if state == "green" else red, (0, 0), fx=0.5, fy=0.5)
+
+    if state == "red":  # Red state: detect 'W' key press
+        start_time = time.time()
+        while time.time() - start_time < RED_STATE_DURATION:
+            cv2.imshow('Squid Game', frame)
+            if cv2.waitKey(1) & 0xFF == ord('w'):  # Kill if 'W' pressed during red
+                cv2.imshow('Squid Game', cv2.resize(kill, (0, 0), fx=0.5, fy=0.5))
+                cv2.waitKey(1000)  # Show kill frame for 1 second
+                playsound(kill_sound)
+                state = "kill"
+                break
+        if state != "kill":
+            state = "green"
+
+    elif state == "green":  # Green state: count 'W' key presses
+        if cv2.waitKey(10) & 0xFF == ord('w'):
+            score += 1
+
+    # Display timer and score
+    cv2.putText(frame, f"Time: {remaining_time}s", (20, 30), font, 1, (0, 255, 255), 2)
+    cv2.putText(frame, f"Score: {score}", (20, 70), font, 1, (0, 255, 255), 2)
+    cv2.imshow('Squid Game', frame)
+
+    if cv2.waitKey(10) & 0xFF == ord('q'):  # Quit on 'Q' key press
+        state = "kill"
         break
-            
-cap.release()            
-if not win:
-    for i in range(10):
-        cv2.imshow('Squid Game',cv2.resize(kill, (0, 0), fx = 0.5, fy = 0.5))
-    playsound('sounds\kill.mp3')    
-    while True:
-        cv2.imshow('Squid Game',cv2.resize(kill, (0, 0), fx = 0.5, fy = 0.5) )
-        if cv2.waitKey(10) & 0xFF == ord('q'):
-            break       
-else:
-    
-    cv2.imshow('Squid Game',cv2.resize(winner, (0, 0), fx = 0.5, fy = 0.5))
-    cv2.waitKey(125)    
-    playsound('sounds\win.mp3') 
-    
-    while True:
-        cv2.imshow('Squid Game',cv2.resize(winner, (0, 0), fx = 0.5, fy = 0.5) )
-        #cv2.imshow('shit',cv2.resize(graphic[3], (0, 0), fx = 0.5, fy = 0.5))
-        if cv2.waitKey(10) & 0xFF == ord('q'):
-            break
-    
+
+# Cleanup
+game_running = False
+cap.release()
 cv2.destroyAllWindows()
+
+# Game result
+if state == "kill":  # Show kill frame before exiting
+    cv2.imshow('Squid Game', cv2.resize(kill, (0, 0), fx=0.5, fy=0.5))
+    cv2.waitKey(2000)  # Display kill frame for 2 seconds
+    playsound(kill_sound)
+else:  # Display win or lose screen based on score
+    result = winner if score > 15 else kill
+    cv2.imshow('Squid Game', cv2.resize(result, (0, 0), fx=0.5, fy=0.5))
+    playsound(win_sound if score > 15 else kill_sound)
+    cv2.waitKey(5000)
+
+print(f"Game Over! Your Score: {score}")
